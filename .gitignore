@@ -33,3 +33,7 @@
 
 # Everthing else
 .vs
+*.sln
+*.vcxproj*
+Debug
+Release
