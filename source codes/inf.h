@@ -1,16 +1,16 @@
 #pragma once
 #include <iostream>
+#include <assert.h>
 using namespace std;
-typedef uint8_t uintS_t;
 typedef uint64_t uintL_t;
-#define UINTS_S sizeof(uintS_t)
 #define UINTL_S sizeof(uintL_t)
-#define ratio uint8_t(UINTL_S / UINTS_S)
-typedef uint8_t size_T;
-typedef uint8_t data_t;	//Don't change to bigger type yet!
+typedef uint8_t data_t;
 #define DATA_S sizeof(data_t)
+typedef uint8_t size_T;
+#define ratio uint8_t(UINTL_S / DATA_S)
 
-static_assert(!(UINTL_S % UINTS_S), "Ratio have fraction");
+static_assert(!(UINTL_S % DATA_S), "Ratio have fraction");
+static_assert(UINTL_S >= DATA_S, "uintL_t must be bigger than data_t");
 
 class inf {
 private:
@@ -20,10 +20,12 @@ public:
 	///
 	//	Function
 	///
-	inf& size_increase(const size_T& input);
-	inf& size_decrease(const size_T& input);
-	inf& size_set(const size_T& input);
-	inf& add(const data_t*, const size_T&);
+	inf& size_increase(const size_T&);
+	inf& size_decrease(const size_T&);
+	inf& size_set(const size_T&);
+	inf& size_free();
+	template<typename number_t>
+	inf& add(const data_t*, const number_t&);
 	///
 	//	Default constructors & destructors
 	///
@@ -32,38 +34,53 @@ public:
 	inf(const T&);
 	~inf();
 	///
+	//	Increment Decrement
+	///
+	inf& operator++();
+	inf& operator++(int);
+	inf& operator--();
+	inf& operator--(int);
+	///
 	//	Arithmetic operators
 	///
-	template<typename T>
-	const inf operator+(const T&) const;
-	template<typename T>
-	const inf operator*(const T&) const;
+	template<typename number_t>
+	const inf operator+(const number_t&) const;
+	template<typename number_t>
+	const inf operator*(const number_t&) const;
 	///
 	//	Assignment opeartors
 	///
-	template<typename T>
-	inf& operator=(const T&);
-	template<typename T>
-	inf& operator+=(const T&);
+	template<typename number_t>
+	inf& operator=(const number_t&);
+	template<typename number_t>
+	inf& operator+=(const number_t&);
+	template<typename number_t>
+	inf& operator<<=(const number_t&);
+	template<typename number_t>
+	inf& operator>>=(const number_t&);
 };
 
 ///
 //	Function
 ///
 inline inf& inf::size_increase(const size_T& input) {
-	uintS_t* temp = new uintS_t[size + input];
-	copy_n(_data, size, temp);
-	delete[] _data;
-	_data = temp;
-	fill_n(temp += size, input, 0);
-	size += input;
+	if (input) {
+		data_t* temp = new data_t[size + input];
+		copy_n(_data, size, temp);
+		delete[] _data;
+		_data = temp;
+		fill_n(temp += size, input, 0);
+		size += input;
+	}
 	return *this;
 }
 inline inf& inf::size_decrease(const size_T& input) {
-	uintS_t* temp = new uintS_t[size -= input];
-	copy_n(_data, size, temp);
-	delete[] _data;
-	_data = temp;
+	if (input) {
+		data_t* temp = new data_t[size -= input];
+		copy_n(_data, size, temp);
+		delete[] _data;
+		_data = temp;
+	}
 	return *this;
 }
 inline inf& inf::size_set(const size_T& input) {
@@ -72,11 +89,11 @@ inline inf& inf::size_set(const size_T& input) {
 		_data = NULL;
 	}
 	else if (!_data) {
-		uintS_t* temp = new uintS_t[input];
+		data_t* temp = new data_t[input];
 		fill_n(temp, size = input, 0);
 	}
 	else if(input > size){
-		uintS_t* temp = new uintS_t[input];
+		data_t* temp = new data_t[input];
 		copy_n(_data, size, temp);
 		delete[] _data;
 		fill_n(temp += size, input - size, 0);
@@ -84,7 +101,7 @@ inline inf& inf::size_set(const size_T& input) {
 		size = input;
 	}
 	else if (size > input) {
-		uintS_t* temp = new uintS_t[input];
+		data_t* temp = new data_t[input];
 		copy_n(_data, size, temp);
 		delete[] _data;
 		_data = temp;
@@ -92,30 +109,25 @@ inline inf& inf::size_set(const size_T& input) {
 	}
 	return *this;
 }
-inline inf& inf::add(const data_t* _R, const size_T& _R_size) {
+inline inf& inf::size_free() {
+	size_T size_after = size;
+	for (data_t* _check = _data + size; size_after; --size_after) {
+		if (*_check) {
+			break;
+		}
+	}
+	size_set(size_after);
+	return *this;
+}
+template<typename number_t>
+inline inf& inf::add(const data_t* _R, const number_t& _R_size) {
 	bool carry = false;
 	if (size < _R_size) {
 		size_set(_R_size);
 	}
 	data_t* _RW = _data;
-	if (uint8_t FA = _R_size / UINTL_S) {	//Fast add
+	if (uint8_t FA = _R_size / ratio) {	//Fast add
 		for (++FA; --FA; ) {
-			if (carry) {
-				if (++(*(uintS_t*)_RW += *(uintS_t*)_R) > *(uintS_t*)_R) {
-					carry = false;
-				}
-			}
-			else {
-				if ((*(uintS_t*)_RW += *(uintS_t*)_R) < *(uintS_t*)_R) {
-					carry = true;
-				}
-			}
-			_RW += UINTL_S;
-			_R += UINTL_S;
-		}
-	}
-	if (uint8_t A = _R_size % UINTL_S) {	//Normal add
-		for (++A; --A; ) {
 			if (carry) {
 				if (++(*(uintL_t*)_RW += *(uintL_t*)_R) > *(uintL_t*)_R) {
 					carry = false;
@@ -123,6 +135,22 @@ inline inf& inf::add(const data_t* _R, const size_T& _R_size) {
 			}
 			else {
 				if ((*(uintL_t*)_RW += *(uintL_t*)_R) < *(uintL_t*)_R) {
+					carry = true;
+				}
+			}
+			_RW += ratio;
+			_R += ratio;
+		}
+	}
+	if (uint8_t A = _R_size % ratio) {	//Normal add
+		for (++A; --A; ) {
+			if (carry) {
+				if (++(*_RW += *_R) > *_R) {
+					carry = false;
+				}
+			}
+			else {
+				if ((*_RW += *_R) < *_R) {
 					carry = true;
 				}
 			}
@@ -145,22 +173,68 @@ inline inf& inf::add(const data_t* _R, const size_T& _R_size) {
 }
 
 ///
-//	Template
+//	Default constructor & destructor
 ///
-
-///
-//		Default constructor & destructor
-///
+inf::inf() {
+	size = 0;
+	_data = NULL;
+}
 template<typename T>
 inf::inf(const T& input) {
 	*this = input;
 }
+inf::~inf() {
+	delete[] _data;
+}
+
+///
+//	Increment Decrement
+///
+inline inf& inf::operator++() {
+	data_t* _RW = _data;
+	size_T remain = size;
+	for (++remain; --remain; ++_RW) {
+		if (++*_RW) {
+			return *this;
+		}
+	}
+	size_increase(1);
+	_data[size - 1] = 1;
+	return *this;
+}
+inline inf& inf::operator++(int) {
+	inf output(*this);
+	++*this;
+	return output;
+}
+inline inf& inf::operator--() {
+	data_t* _RW = _data;
+	size_T remain = size;
+	for (++remain; --remain; ++_RW) {
+		if (*_RW) {
+			--*_RW;
+			return *this;
+		}
+		--*_RW;
+	}
+	size_decrease(1);
+	return *this;
+}
+inline inf& inf::operator--(int) {
+	inf output(*this);
+	--*this;
+	return output;
+}
+
+///
+//	Template
+///
 
 ///
 //		Arithmetic operation
 ///
-template<typename T>
-inline const inf inf::operator+(const T& input) const {
+template<typename number_t>
+inline const inf inf::operator+(const number_t& input) const {
 	inf output;
 	if (size >= sizeof(input)) {
 		output = input;
@@ -168,12 +242,12 @@ inline const inf inf::operator+(const T& input) const {
 	}
 	else {
 		output = *this;
-		*(*T)_data += input;
+		output += input;
 	}
 	return output;
 }
-template<typename T>
-inline const inf inf::operator*(const T& input) const {
+template<typename number_t>
+inline const inf inf::operator*(const number_t& input) const {
 	inf output(*this);
 
 	return output;
@@ -182,29 +256,63 @@ inline const inf inf::operator*(const T& input) const {
 ///
 //		Assignment opeartors
 ///
-template<typename T>
-inline inf& inf::operator=(const T& input) {
+template<typename number_t>
+inline inf& inf::operator=(const number_t& input) {
 	_data = new uintS_t[sizeof(input) / UINTS_S];
 	*(*T)_data = input;
 	return *this;
 }
-template<typename T>
-inline inf& inf::operator+=(const T& input) {
+template<typename number_t>
+inline inf& inf::operator+=(const number_t& input) {
 	add(&input, sizeof(input));
+	return *this;
+}
+template<typename number_t>
+inline inf& inf::operator<<=(const number_t& input) {
+	assert(!(input > DATA_S * 8));	//Shift more than DATA_S byte is not supported yet
+	data_t* _RW = _data;
+	uint8_t reverse = UINTL_S * 8 - input;
+	if (uint8_t FS = size / ratio) {	//Fast shift
+		for (++FS; --FS; ) {
+			data_t* temp = _RW;
+			(*(uintL_t*)temp <<= input) |= *(uintL_t*)(_RW += ratio) >> reverse;
+		}
+	}
+	if (uint8_t S = size % ratio) {	//Normal shift
+		reverse -= (UINTL_S - DATA_S) * 8;
+		while (--S) {
+			data_t* temp = _RW;
+			(*temp <<= input) |= *++_RW >> reverse;
+		}
+		*_RW <<= input;
+	}
+	return *this;
+}
+template<typename number_t>
+inline inf& inf::operator>>=(const number_t& input) {
+	assert(!(input > DATA_S * 8));	//Shift more than DATA_S byte is not supported yet
+	data_t* _RW = _data + size;
+	uint8_t reverse = UINTL_S * 8 - input;
+	if (uint8_t FS = size / ratio) {	//Fast shift
+		for (++FS; --FS; ) {
+			data_t* temp = _RW;
+			(*(uintL_t*)temp >>= input) |= *(uintL_t*)(_RW -= ratio) << reverse;
+		}
+	}
+	if (uint8_t S = size % ratio) {	//Normal shift
+		reverse -= (UINTL_S - DATA_S) * 8;
+		while (--S) {
+			data_t* temp = _RW;
+			(*temp >>= input) |= *--_RW << reverse;
+		}
+		*_RW >>= input;
+	}
 	return *this;
 }
 
 ///
 //	inf
 ///
-
-///
-//		Default constructor & destructor
-///
-inf::inf() {}
-inf::~inf() {
-	delete[] _data;
-}
 
 ///
 //		Arithmetic operation
@@ -230,7 +338,7 @@ inline const inf inf::operator+<inf>(const inf& input) const {
 ///
 template<>
 inline inf& inf::operator=<inf>(const inf& input) {
-	_data = new uintS_t[size = input.size];
+	_data = new data_t[size = input.size];
 	copy_n(input._data, size, _data);
 	return *this;
 }
