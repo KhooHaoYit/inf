@@ -37,3 +37,4 @@
 *.vcxproj*
 Debug
 Release
+.vscode
