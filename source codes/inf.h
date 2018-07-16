@@ -13,6 +13,7 @@
 
 #include <iostream>
 #include <assert.h>
+#include "header.h"
 using namespace std;
 typedef uint64_t uintL_t;
 #define UINTL_S sizeof(uintL_t)
@@ -30,34 +31,36 @@ static const uint8_t bitB[8] = { 128, 64, 32, 16, 8, 4, 2, 1 };
 class inf {
 private:
 	size_T size;
-	data_t* _data;
+	data_t* _data_back;	//At the end of the array
 public:
 	///
 	//	Function
 	///
+	data_t* _data_front() const;
+	inf& assign(data_t const*const&, size_T const&);
 	inf& clear();
-	inf& size_increase(const size_T&);
-	inf& size_decrease(const size_T&);
-	inf& size_set(const size_T&);
+	inf& size_increase(size_T const&);
+	inf& size_decrease(size_T const&);
+	inf& size_set(size_T const&);
 	inf& size_free();
-	inf& add(const data_t*, const size_T&);
+	inf& add(data_t const*, size_T const&);
 	///
 	//	Default constructors & destructors
 	///
 	inf();
-	inf(const inf&);
+	inf(inf const&);
 	template<typename number_t>
-	inf(const number_t&);
+	inf(number_t const&);
 	template<typename data, typename number_t>
-	inf(const data*&, const number_t&);
+	inf(data const*const&, number_t const&);
 	~inf();
 	///
 	//	Increment & Decrement operators
 	///
 	inf& operator++();
-	inf& operator++(int);
+	inf const operator++(int);
 	inf& operator--();
-	inf& operator--(int);
+	inf const operator--(int);	//Done changing
 	///
 	//	Logical operators
 	///
@@ -95,65 +98,90 @@ public:
 	template<typename number_t>
 	inf& operator*=(const number_t&);
 };
+///
+//	Private
+///
 
 ///
-//	Function
+//	Public
 ///
-inline inf& inf::clear() {
-	if (_data) {
-		fill_n(_data, size, 0);
+
+///
+//		Function
+///
+inline data_t* inf::_data_front() const {
+	if (_data_back) {
+		return _data_back - size;
+	}
+	return NULL;
+}
+inline inf& inf::assign(data_t const*const& _R, size_T const& _R_size) {
+	delete[] _data_front();
+	size = _R_size;
+	if (_R_size) {
+		_data_back = copy_n(_R, _R_size, new data_t[_R_size]);
+	}
+	else {
+		_data_back = NULL;
 	}
 	return *this;
 }
-inline inf& inf::size_increase(const size_T& input) {
+inline inf& inf::clear() {
+	fill_back_n_in(_data_back, size, 0);
+	return *this;
+}
+inline inf& inf::size_increase(size_T const& input) {
 	if (input) {
 		data_t* temp = new data_t[size + input];
-		copy_n(_data, size, temp);
-		delete[] _data;
-		_data = temp;
-		fill_n(temp += size, input, 0);
+		if (size) {
+			temp = copy_n(_data_front(), size, temp);
+		}
+		delete[] _data_front();
+		_data_back = fill_n(temp, input, 0);
 		size += input;
 	}
 	return *this;
 }
-inline inf& inf::size_decrease(const size_T& input) {
+inline inf& inf::size_decrease(size_T const& input) {
 	if (input) {
-		data_t* temp = new data_t[size -= input];
-		copy_n(_data, size, temp);
-		delete[] _data;
-		_data = temp;
+		if (input >= size) {
+			delete[] _data_front();
+			_data_back = NULL;
+			size = 0;
+		}
+		else {
+			data_t* temp = new data_t[size -= input];
+			temp = copy_n(_data_front(), input, temp);
+			delete[] _data_front();
+			_data_back = temp;
+		}
 	}
 	return *this;
 }
-inline inf& inf::size_set(const size_T& input) {
+inline inf& inf::size_set(size_T const& input) {
 	if (!input) {
-		delete[] _data;
-		_data = NULL;
+		delete[] _data_front();
+		_data_back = NULL;
 	}
-	else if (!_data) {
-		data_t* temp = new data_t[input];
-		fill_n(temp, size = input, 0);
+	else if (!size) {
+		_data_back = fill_n(new data_t[size = input], input, 0);
 	}
 	else if (input > size) {
-		data_t* temp = new data_t[input];
-		copy_n(_data, size, temp);
-		delete[] _data;
-		_data = temp;
-		fill_n(temp += size, input - size, 0);
+		data_t* temp = copy_n(_data_front(), size, new data_t[input]);
+		delete[] _data_front();
+		_data_back = fill_n(temp, input - size, 0);
 		size = input;
 	}
 	else if (size > input) {
-		data_t* temp = new data_t[input];
-		copy_n(_data, size, temp);
-		delete[] _data;
-		_data = temp;
-		size = input;
+		 data_t* temp = copy_n(_data_front(), input, new data_t[size = input]);
+		delete[] _data_front();
+		_data_back = temp;
 	}
 	return *this;
 }
 inline inf& inf::size_free() {
 	size_T remain = size;
-	for (data_t* _check = _data + size; remain; --remain) {
+	for (data_t* _check = _data_back; remain; --remain, --_check) {
 		if (*_check) {
 			break;
 		}
@@ -161,116 +189,104 @@ inline inf& inf::size_free() {
 	size_set(remain);
 	return *this;
 }
-inline inf& inf::add(const data_t* _R, const size_T& _R_size) {
+inline inf& inf::add(data_t const* _R, size_T const& _R_size) {
 	if (_R_size) {
 		if (size) {
 			if (size < _R_size) {
 				size_set(_R_size);
 			}
 			bool carry = false;
-			data_t* _RW = _data;
-			if (size_T FA = _R_size / ratio) {	//Fast add
-				for (++FA; --FA; ) {
-					if (carry) {
-						if (++(*(uintL_t*)_RW += *(uintL_t*)_R) > *(uintL_t*)_R) {
-							carry = false;
-						}
+			data_t* _RW = _data_back;
+			for (size_T FA = _R_size / ratio; FA; FA--) {	//Fast add
+				_R -= ratio;
+				_RW -= ratio;
+				if (carry) {
+					if (++(*(uintL_t*)_RW += *(uintL_t*)_R) > *(uintL_t*)_R) {
+						carry = false;
 					}
-					else {
-						if ((*(uintL_t*)_RW += *(uintL_t*)_R) < *(uintL_t*)_R) {
-							carry = true;
-						}
+				}
+				else {
+					if ((*(uintL_t*)_RW += *(uintL_t*)_R) < *(uintL_t*)_R) {
+						carry = true;
 					}
-					_RW += ratio;
-					_R += ratio;
 				}
 			}
-			if (uint8_t A = _R_size % ratio) {	//Normal add
-				for (++A; --A; ) {
-					if (carry) {
-						if (++(*_RW += *_R) > *_R) {
-							carry = false;
-						}
+			for (uint8_t A = _R_size % ratio; A; --A) {	//Normal add
+				--_RW;
+				--_R;
+				if (carry) {
+					if (++(*_RW += *_R) > *_R) {
+						carry = false;
 					}
-					else {
-						if ((*_RW += *_R) < *_R) {
-							carry = true;
-						}
+				}
+				else {
+					if ((*_RW += *_R) < *_R) {
+						carry = true;
 					}
-					++_RW;
-					++_R;
 				}
 			}
 			if (carry) {
-				if (size_T remain = size - _R_size) {
-					for (++remain; --remain; ++_RW) {
-						if (++*_RW) {
-							return *this;
-						}
+				for (size_T remain = size - _R_size; remain; --remain) {
+					if (++*--_RW) {
+						return *this;
 					}
 				}
 				size_increase(1);
-				_data[size - 1] = 1;
+				*_data_front() = 1;
 			}
 		}
 		else {
-			_data = new data_t[size = _R_size];
-			copy_n(_R, _R_size, _data);
+			assign(_R, _R_size);
 		}
 	}
 	return *this;
 }
 
 ///
-//	Default constructor & destructor
+//		Default constructor & destructor
 ///
 inf::inf() {
 	size = 0;
-	_data = NULL;
+	_data_back = NULL;
 }
 template<typename number_t>
-inf::inf(const number_t& input) {
-	_data = new data_t[size = sizeof(number_t)];
-	*(number_t*)_data = input;
+inf::inf(number_t const& input) {
+	this->assign(&input, sizeof(input));
 }
-inf::inf(const inf& input) {
-	_data = new data_t[size = input.size];
-	copy_n(input._data, size, _data);
+inf::inf(inf const& input) {
+	this->assign(input._data_back, input.size);
 }
 template<typename data, typename number_t>
-inf::inf(const data*& _R, const number_t& length) {
-	_data = new data_t[size = sizeof(data) * length];
-	copy_n(_R, length, _data);
+inf::inf(data const*const& _R, number_t const& length) {
+	this->assign(_R, length);
 }
 inf::~inf() {
-	delete[] _data;
+	delete[] _data_front();
 }
 
 ///
-//	Increment Decrement
+//		Increment Decrement
 ///
 inline inf& inf::operator++() {
-	data_t* _RW = _data;
-	size_T remain = size;
-	for (++remain; --remain; ++_RW) {
-		if (++*_RW) {
+	data_t* _RW = _data_back;
+	for (size_T remain = size; remain; --remain) {
+		if (++*--_RW) {
 			return *this;
 		}
 	}
 	size_increase(1);
-	_data[size - 1] = 1;
+	*_data_front() = 1;
 	return *this;
 }
-inline inf& inf::operator++(int) {
+inline inf const inf::operator++(int) {
 	inf output(*this);
 	++*this;
 	return output;
 }
 inline inf& inf::operator--() {
-	data_t* _RW = _data;
-	size_T remain = size;
-	for (++remain; --remain; ++_RW) {
-		if (*_RW) {
+	data_t* _RW = _data_back;
+	for (size_T remain = size; remain; --remain) {
+		if (*--_RW) {
 			--*_RW;
 			return *this;
 		}
@@ -279,18 +295,18 @@ inline inf& inf::operator--() {
 	size_decrease(1);
 	return *this;
 }
-inline inf& inf::operator--(int) {
+inline inf const inf::operator--(int) {
 	inf output(*this);
 	--*this;
 	return output;
 }
 
 ///
-//	Template
+//		Template
 ///
 
 ///
-//		Logical operators
+//			Logical operators
 ///
 template<typename number_t>
 inline const bool inf::operator&&(const number_t& input) const {
@@ -308,7 +324,7 @@ inline const bool inf::operator||(const number_t& input) const {
 }
 
 ///
-//		Arithmetic operation
+//			Arithmetic operation
 ///
 template<typename number_t>
 inline const inf inf::operator+(const number_t& input) const {
@@ -340,7 +356,7 @@ inline const inf inf::operator>>(const number_t& input) const {
 }
 
 ///
-//		Assignment opeartors
+//			Assignment opeartors
 ///
 template<typename number_t>
 inline inf& inf::operator<<=(const number_t& input) {
@@ -413,11 +429,11 @@ inline inf& inf::operator*=(const number_t& input) {
 }
 
 ///
-//	inf
+//		inf
 ///
 
 ///
-//		Logical operators
+//			Logical operators
 ///
 template<>
 inline const bool inf::operator&&<inf>(const inf& input) const {
@@ -428,7 +444,7 @@ inline const bool inf::operator&&<inf>(const inf& input) const {
 }
 
 ///
-//		Comparison operators
+//			Comparison operators
 ///
 template<>
 inline const bool inf::operator==<inf>(const inf& input) const {
@@ -452,7 +468,7 @@ inline const bool inf::operator==<inf>(const inf& input) const {
 }
 
 ///
-//		Arithmetic operation
+//			Arithmetic operation
 ///
 template<>
 inline const inf inf::operator+<inf>(const inf& input) const {
@@ -471,7 +487,7 @@ inline const inf inf::operator+<inf>(const inf& input) const {
 }
 
 ///
-//		Assignment opeartors
+//			Assignment opeartors
 ///
 template<>
 inline inf& inf::operator<<=<inf>(const inf& input) {
