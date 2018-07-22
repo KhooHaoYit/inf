@@ -62,14 +62,16 @@ public:
 	//	Logical operators
 	///
 	template<typename number_t>
-	const bool operator&&(const number_t&) const;
+	bool const operator&&(number_t const&) const;
 	template<typename number_t>
-	const bool operator||(const number_t&) const;
+	bool const operator||(number_t const&) const;
 	///
 	//	Comparison operators
 	///
 	template<typename number_t>
-	const bool operator==(const number_t&) const;
+	bool const operator==(number_t const&) const;
+	template<typename number_t>
+	bool const operator!=(number_t const&) const;
 	///
 	//	Assignment opeartors
 	///
@@ -87,13 +89,13 @@ public:
 	//	Arithmetic operators
 	///
 	template<typename number_t>
-	const inf operator+(const number_t&) const;
+	inf const operator+(number_t const&) const;
 	template<typename number_t>
-	const inf operator*(const number_t&) const;
+	inf const operator*(number_t const&) const;
 	template<typename number_t>
-	const inf operator<<(const number_t&) const;
+	inf const operator<<(number_t const&) const;
 	template<typename number_t>
-	const inf operator>>(const number_t&) const;
+	inf const operator>>(number_t const&) const;
 };
 ///
 //	Private
@@ -351,14 +353,14 @@ inline inf const inf::operator--(int) {
 ///
 //			operator&&
 template<typename number_t>
-inline const bool inf::operator&&(const number_t& input) const {
+inline bool const inf::operator&&(number_t const& input) const {
 	if (size && input) {
 		return true;
 	}
 	return false;
 }
 template<>
-inline const bool inf::operator&&<inf>(const inf& input) const {
+inline bool const inf::operator&&<inf>(inf const& input) const {
 	if (size && input.size) {
 		return true;
 	}
@@ -366,7 +368,7 @@ inline const bool inf::operator&&<inf>(const inf& input) const {
 }
 //			operator||
 template<typename number_t>
-inline const bool inf::operator||(const number_t& input) const {
+inline bool const inf::operator||(number_t const& input) const {
 	if (size || input) {
 		return true;
 	}
@@ -378,7 +380,7 @@ inline const bool inf::operator||(const number_t& input) const {
 ///
 //			operator==
 template<>
-inline const bool inf::operator==<inf>(const inf& input) const {
+inline bool const inf::operator==<inf>(inf const& input) const {
 	const inf& large = (size >= input.size) ? *this : input;
 	const inf& small = (size >= input.size) ? input : *this;
 	data_t* _LR = large._data_back();
@@ -394,6 +396,11 @@ inline const bool inf::operator==<inf>(const inf& input) const {
 		}
 	}
 	return true;
+}
+//			operator!=
+template<>
+inline bool const inf::operator!=<inf>(inf const& input) const {
+	return !(*this == input);
 }
 
 ///
