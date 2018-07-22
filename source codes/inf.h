@@ -22,8 +22,9 @@ typedef uint8_t size_T;
 static_assert(!(UINTL_S % DATA_S), "Ratio have fraction");
 static_assert(UINTL_S >= DATA_S, "uintL_t must be bigger than data_t");
 
-static const uint8_t bit8S[8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
-static const uint8_t bit8B[8] = { 128, 64, 32, 16, 8, 4, 2, 1 };
+//May use std::array<data_t, DATA_S * 8> to automate data_bit initialization
+static data_t const data_bitS[DATA_S * 8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
+static data_t const data_bitB[DATA_S * 8] = { 128, 64, 32, 16, 8, 4, 2, 1 };
 
 class inf {
 private:
@@ -201,7 +202,7 @@ inline inf& inf::add(data_t const* _R, size_T const& _R_size) {
 			bool carry = false;
 			data_t* _RW = _data;
 			for (size_T FA = _R_size / ratio; FA; --FA, _RW += ratio) {	//Fast add
-				if (*_RW | bit8B[0]) {
+				if (*_RW | data_bitB[0]) {
 					*(uintL_t*)_RW *= 2;
 					if (carry) {
 						++*(uintL_t*)_RW;
@@ -217,7 +218,7 @@ inline inf& inf::add(data_t const* _R, size_T const& _R_size) {
 				}
 			}
 			for (uint8_t A = _R_size % ratio; A; --A, ++_RW) {	//Normal add
-				if (*_RW | bit8B[0]) {
+				if (*_RW | data_bitB[0]) {
 					*_RW *= 2;
 					if (carry) {
 						++*_RW;
@@ -380,9 +381,9 @@ inline bool const inf::operator||(number_t const& input) const {
 ///
 //			operator==
 template<>
-inline bool const inf::operator==<inf>(inf const& input) const {
-	const inf& large = (size >= input.size) ? *this : input;
-	const inf& small = (size >= input.size) ? input : *this;
+inline bool inf::opeconst rator==<inf>(inf const& input) const {
+	inf const& large = (size >= input.size) ? *this : input;
+	inf const& small = (size >= input.size) ? input : *this;
 	data_t* _LR = large._data_back();
 	for (size_T check = large.size - small.size; check; --check, --_LR) {
 		if (*_LR) {
@@ -408,7 +409,7 @@ inline bool const inf::operator!=<inf>(inf const& input) const {
 ///
 //			operator<<=
 template<typename number_t>
-inline inf& inf::operator<<=(const number_t& input) {
+inline inf& inf::operator<<=(number_t const& input) {
 	if (input) {
 		assert(!(input > DATA_S * 8));	//Shift more than DATA_S byte is not supported yet
 		data_t* _RW = _data.back();
@@ -424,7 +425,7 @@ inline inf& inf::operator<<=(const number_t& input) {
 	return *this;
 }
 template<>
-inline inf& inf::operator<<=<inf>(const inf& input) {
+inline inf& inf::operator<<=<inf>(inf const& input) {
 	if (input.size) {
 		if (*input._data_back) {
 			assert(!(*input._data > DATA_S * 8));	//Shift more than DATA_S byte is not supported yet
@@ -443,7 +444,7 @@ inline inf& inf::operator<<=<inf>(const inf& input) {
 }
 //			operator>>=
 template<typename number_t>
-inline inf& inf::operator>>=(const number_t& input) {
+inline inf& inf::operator>>=(number_t const& input) {
 	if (input) {
 		assert(!(input > DATA_S * 8));	//Shift more than DATA_S byte is not supported yet
 		data_t* _RW = _data;
@@ -459,7 +460,7 @@ inline inf& inf::operator>>=(const number_t& input) {
 	return *this;
 }
 template<>
-inline inf& inf::operator>>=<inf>(const inf& input) {
+inline inf& inf::operator>>=<inf>(inf const& input) {
 	if (input.size) {
 		if (*input._data_back) {
 			assert(!(*input._data > DATA_S * 8));	//Shift more than DATA_S byte is not supported yet
@@ -478,35 +479,35 @@ inline inf& inf::operator>>=<inf>(const inf& input) {
 }
 //			operator=
 template<typename number_t>
-inline inf& inf::operator=(const number_t& input) {
+inline inf& inf::operator=(number_t const& input) {
 	this->assign((data_t*)&input, sizeof(number_t));
 	return *this;
 }
 template<>
-inline inf& inf::operator=<inf>(const inf& input) {
+inline inf& inf::operator=<inf>(inf const& input) {
 	this->assign(input._data_back, input.size);
 	return *this;
 }
 //			operator+=
 template<typename number_t>
-inline inf& inf::operator+=(const number_t& input) {
+inline inf& inf::operator+=(number_t const& input) {
 	add((data_t*)&input, sizeof(number_t));
 	return *this;
 }
 template<>
-inline inf& inf::operator+=<inf>(const inf& input) {
+inline inf& inf::operator+=<inf>(inf const& input) {
 	add(input._data_back, input.size);
 	return *this;
 }
 //			operator*=
 template<typename number_t>
-inline inf& inf::operator*=(const number_t& input) {
+inline inf& inf::operator*=(number_t const& input) {
 	inf temp(input);
 	*this *= temp;
 	return *this;
 }
 template<>
-inline inf& inf::operator*=<inf>(const inf& input) {
+inline inf& inf::operator*=<inf>(inf const& input) {
 	if (*this && input) {
 		size_T read = input.size;
 		data_t* _R;
@@ -523,7 +524,7 @@ inline inf& inf::operator*=<inf>(const inf& input) {
 		inf ShiftHowMuch;
 		for (++read; --read; ++_R) {
 			for (uint8_t readbit = 8; readbit; ++ShiftHowMuch) {	//data_t must be uint8_t
-				if (*_R & bit8B[--readbit]) {
+				if (*_R & data_bitB[--readbit]) {
 					*this += (temp <<= ShiftHowMuch);
 					ShiftHowMuch.clear();
 				}
@@ -546,7 +547,7 @@ inline inf& inf::operator*=<inf>(const inf& input) {
 ///
 //			operator+
 template<typename number_t>
-inline const inf inf::operator+(const number_t& input) const {
+inline inf const inf::operator+(number_t const& input) const {
 	inf output;
 	if (size >= sizeof(number_t)) {
 		output = input;
@@ -559,7 +560,7 @@ inline const inf inf::operator+(const number_t& input) const {
 	return output;
 }
 template<>
-inline const inf inf::operator+<inf>(const inf& input) const {
+inline inf const inf::operator+<inf>(inf const& input) const {
 	inf output;
 	if (size >= input.size) {
 		output = *this;
@@ -573,19 +574,19 @@ inline const inf inf::operator+<inf>(const inf& input) const {
 }
 //			operator*
 template<typename number_t>
-inline const inf inf::operator*(const number_t& input) const {
+inline inf const inf::operator*(number_t const& input) const {
 	inf output(*this);
 	return output *= input;
 }
 //			operator<<
 template<typename number_t>
-inline const inf inf::operator<<(const number_t& input) const {
+inline inf const inf::operator<<(number_t const& input) const {
 	inf output(*this);
 	return output <<= input;
 }
 //			operator>>
 template<typename number_t>
-inline const inf inf::operator>>(const number_t& input) const {
+inline inf const inf::operator>>(number_t const& input) const {
 	inf output(*this);
 	return output >>= input;
 }
