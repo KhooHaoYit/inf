@@ -1,10 +1,10 @@
 #pragma once
-#include <cstdlib>
-#include <crtdbg.h>
 #ifdef _DEBUG
-#define new new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
-// Replace _NORMAL_BLOCK with _CLIENT_BLOCK if you want the
-// allocations to be of _CLIENT_BLOCK type
+	#include <cstdlib>
+	#include <crtdbg.h>
+	#define new new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
+	// Replace _NORMAL_BLOCK with _CLIENT_BLOCK if you want the
+	// allocations to be of _CLIENT_BLOCK type
 #else
 #endif
 
@@ -22,9 +22,21 @@ typedef uint8_t size_T;
 static_assert(!(UINTL_S % DATA_S), "Ratio have fraction");
 static_assert(UINTL_S >= DATA_S, "uintL_t must be bigger than data_t");
 
-//May use std::array<data_t, DATA_S * 8> to automate data_bit initialization
-static data_t const data_bitS[DATA_S * 8] = { 1, 2, 4, 8, 16, 32, 64, 128 };
-static data_t const data_bitB[DATA_S * 8] = { 128, 64, 32, 16, 8, 4, 2, 1 };
+#include <array>
+array<data_t, DATA_S * 8> const data_bitS_init() {
+	array<data_t, DATA_S * 8> output = {};
+	output[DATA_S * 8 - 1] = 1 << (DATA_S * 8 - 1);
+	for (uint8_t write = DATA_S * 8; --write; (output[write - 1] = output[write]) >>= 1) {}
+	return output;
+}
+static array<data_t, DATA_S * 8> const data_bitS = data_bitS_init();
+array<data_t, DATA_S * 8> const data_bitB_init() {
+	array<data_t, DATA_S * 8> output = {};
+	output[DATA_S * 8 - 1] = 1;
+	for (uint8_t write = DATA_S * 8; --write; (output[write - 1] = output[write]) <<= 1) {}
+	return output;
+}
+static array<data_t, DATA_S * 8> const data_bitB = data_bitS_init();
 
 class inf {
 private:
@@ -198,7 +210,7 @@ inline inf& inf::size_free() {
 }
 inline inf& inf::add(data_t const* _R, size_T const& _R_size) {
 	if (_R_size) {
-		if (this->_data_back == _R) {
+		if (this->_data == _R) {
 			bool carry = false;
 			data_t* _RW = _data;
 			for (size_T FA = _R_size / ratio; FA; --FA, _RW += ratio) {	//Fast add
@@ -292,7 +304,7 @@ inline inf& inf::add(data_t const* _R, size_T const& _R_size) {
 ///
 inf::inf() {}
 inf::inf(inf const& input) {
-	this->assign(input._data_back, input.size);
+	this->assign(input._data, input.size);
 }
 template<typename number_t>
 inf::inf(number_t const& input) {
@@ -381,7 +393,7 @@ inline bool const inf::operator||(number_t const& input) const {
 ///
 //			operator==
 template<>
-inline bool inf::opeconst rator==<inf>(inf const& input) const {
+inline bool const inf::operator==<inf>(inf const& input) const {
 	inf const& large = (size >= input.size) ? *this : input;
 	inf const& small = (size >= input.size) ? input : *this;
 	data_t* _LR = large._data_back();
@@ -427,7 +439,7 @@ inline inf& inf::operator<<=(number_t const& input) {
 template<>
 inline inf& inf::operator<<=<inf>(inf const& input) {
 	if (input.size) {
-		if (*input._data_back) {
+		if (*input._data) {
 			assert(!(*input._data > DATA_S * 8));	//Shift more than DATA_S byte is not supported yet
 			data_t* _RW = _data_back();
 			uint8_t reverse = DATA_S * 8 - *input._data;
@@ -462,7 +474,7 @@ inline inf& inf::operator>>=(number_t const& input) {
 template<>
 inline inf& inf::operator>>=<inf>(inf const& input) {
 	if (input.size) {
-		if (*input._data_back) {
+		if (*input._data) {
 			assert(!(*input._data > DATA_S * 8));	//Shift more than DATA_S byte is not supported yet
 			data_t* _RW = _data;
 			uint8_t reverse = DATA_S * 8 - *input._data;
@@ -485,7 +497,7 @@ inline inf& inf::operator=(number_t const& input) {
 }
 template<>
 inline inf& inf::operator=<inf>(inf const& input) {
-	this->assign(input._data_back, input.size);
+	this->assign(input._data, input.size);
 	return *this;
 }
 //			operator+=
@@ -496,7 +508,7 @@ inline inf& inf::operator+=(number_t const& input) {
 }
 template<>
 inline inf& inf::operator+=<inf>(inf const& input) {
-	add(input._data_back, input.size);
+	add(input._data, input.size);
 	return *this;
 }
 //			operator*=
