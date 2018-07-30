@@ -1,15 +1,17 @@
 #pragma once
 #ifdef _DEBUG
-	#include <cstdlib>
-	#include <crtdbg.h>
-	#define new new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
-	// Replace _NORMAL_BLOCK with _CLIENT_BLOCK if you want the
-	// allocations to be of _CLIENT_BLOCK type
+#include <cstdlib>
+#include <crtdbg.h>
+#define new new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
+// Replace _NORMAL_BLOCK with _CLIENT_BLOCK if you want the
+// allocations to be of _CLIENT_BLOCK type
 #else
 #endif
 
 #include <iostream>
 #include <assert.h>
+#include <iomanip>
+#include <string>
 #include "header.h"
 using namespace std;
 typedef uint64_t uintL_t;
@@ -17,6 +19,9 @@ typedef uint64_t uintL_t;
 typedef uint8_t data_t;
 #define DATA_S sizeof(data_t)
 typedef uint8_t size_T;
+#define SIZE_S sizeof(size_T)
+#define SIZE_M (size_T(0) - 1)
+
 #define ratio uint8_t(UINTL_S / DATA_S)
 
 static_assert(!(UINTL_S % DATA_S), "Ratio have fraction");
@@ -36,7 +41,7 @@ array<data_t, DATA_S * 8> const data_bitB_init() {
 	for (uint8_t write = DATA_S * 8; --write; (output[write - 1] = output[write]) <<= 1) {}
 	return output;
 }
-static array<data_t, DATA_S * 8> const data_bitB = data_bitS_init();
+static array<data_t, DATA_S * 8> const data_bitB = data_bitB_init();
 
 class inf {
 private:
@@ -44,16 +49,24 @@ private:
 	data_t* _data = NULL;	//At the start of the array or left
 public:
 	///
+	//	Input Output
+	///
+	friend ostream& operator<<(ostream&, inf const&);
+	///
 	//	Function
 	///
 	data_t* _data_back() const;
 	inf& assign(data_t const*const&, size_T const&);
-	inf& clear();
+	inf& data_set(data_t const& input = 0);
 	inf& size_increase(size_T const&);
 	inf& size_decrease(size_T const&);
 	inf& size_set(size_T const&);
+	//Is this useless?
+	inf& size_set_no_copy(size_T const&);
 	inf& size_free();
 	inf& add(data_t const*, size_T const&);
+	//Didn't check 0x, input hex without 0x
+	inf& hex(string const&);
 	///
 	//	Default constructors & destructors
 	///
@@ -71,9 +84,9 @@ public:
 	inf const operator++(int);
 	inf& operator--();
 	inf const operator--(int);	//Done changing
-	///
-	//	Logical operators
-	///
+								///
+								//	Logical operators
+								///
 	template<typename number_t>
 	bool const operator&&(number_t const&) const;
 	template<typename number_t>
@@ -89,15 +102,15 @@ public:
 	//	Assignment opeartors
 	///
 	template<typename number_t>
-	inf& operator<<=(const number_t&);
+	inf& operator<<=(number_t const&);
 	template<typename number_t>
-	inf& operator>>=(const number_t&);
+	inf& operator>>=(number_t const&);
 	template<typename number_t>
-	inf& operator=(const number_t&);
+	inf& operator=(number_t const&);
 	template<typename number_t>
-	inf& operator+=(const number_t&);
+	inf& operator+=(number_t const&);
 	template<typename number_t>
-	inf& operator*=(const number_t&);
+	inf& operator*=(number_t const&);
 	///
 	//	Arithmetic operators
 	///
@@ -119,6 +132,33 @@ public:
 ///
 
 ///
+//		Input Output 
+///
+inline ostream& operator<<(ostream& os, inf const& input) {
+	if (cout.hex) {
+		if (input.size) {
+			data_t* _R = input._data_back();
+			for (size_T HowMuch = input.size; HowMuch; --HowMuch, --_R) {
+				cout << setfill('0') << setw(2 * sizeof(data_t));
+				if (sizeof(data_t) > 1) {
+					cout << *_R;
+				}
+				else {
+					cout << (uint16_t)*_R;
+				}
+			}
+		}
+		else {
+			cout << '0';
+		}
+	}
+	else {
+		cout << "Other than hexadecimal (base16), the rest is not implement yet!\n";
+	}
+	return os;
+}
+
+///
 //		Function
 ///
 inline data_t* inf::_data_back() const {
@@ -137,8 +177,8 @@ inline inf& inf::assign(data_t const*const& _R, size_T const& _R_size) {
 	}
 	return *this;
 }
-inline inf& inf::clear() {
-	fill_n_in(_data, size, 0);
+inline inf& inf::data_set(data_t const& input) {
+	fill_n_in(_data, size, input);
 	return *this;
 }
 inline inf& inf::size_increase(size_T const& input) {
@@ -149,7 +189,7 @@ inline inf& inf::size_increase(size_T const& input) {
 		}
 		delete[] _data;
 		_data = temp;
-		fill_n_in(temp += input, size, 0);
+		fill_n_in(temp += size, input, 0);
 		size += input;
 	}
 	return *this;
@@ -182,9 +222,7 @@ inline inf& inf::size_set(size_T const& input) {
 	}
 	else if (input > size) {
 		data_t* temp = new data_t[input];
-		if (size) {
-			copy_n_in(_data, size, temp);
-		}
+		copy_n_in(_data, size, temp);
 		delete[] _data;
 		_data = temp;
 		fill_n_in(temp += size, input - size, 0);
@@ -196,6 +234,22 @@ inline inf& inf::size_set(size_T const& input) {
 		delete[] _data;
 		_data = temp;
 	}
+	return *this;
+}
+inline inf& inf::size_set_no_copy(size_T const& input) {
+	if (!input) {
+		delete[] _data;
+		_data = NULL;
+	}
+	else if (!size) {
+		_data = new data_t[input];
+	}
+	else if (size != input) {
+		delete[] _data;
+		_data = new data_t[input];
+	}
+	size = input;
+	data_set();
 	return *this;
 }
 inline inf& inf::size_free() {
@@ -294,6 +348,83 @@ inline inf& inf::add(data_t const* _R, size_T const& _R_size) {
 			else {
 				assign(_R, _R_size);
 			}
+		}
+	}
+	return *this;
+}
+inline inf& inf::hex(string const& input) {
+	//Check required length and set the length
+	string::size_type length = (input.size() + (2 * DATA_S - 1)) / (2 * DATA_S);
+	if (length > SIZE_M) {
+		throw overflow_error("Not enough size to convert to inf");
+	}
+	size_set_no_copy(length);
+	//Set data
+	length = input.size();
+	data_t* _W = _data;
+	uint8_t Offset = 0;
+	for (char const* _R = &input[input.size() - 1]; length; --length, --_R) {
+		switch (*_R) {
+		case '0':
+			*_W |= 0x0 << 4 * Offset;
+			break;
+		case '1':
+			*_W |= 0x1 << 4 * Offset;
+			break;
+		case '2':
+			*_W |= 0x2 << 4 * Offset;
+			break;
+		case '3':
+			*_W |= 0x3 << 4 * Offset;
+			break;
+		case '4':
+			*_W |= 0x4 << 4 * Offset;
+			break;
+		case '5':
+			*_W |= 0x5 << 4 * Offset;
+			break;
+		case '6':
+			*_W |= 0x6 << 4 * Offset;
+			break;
+		case '7':
+			*_W |= 0x7 << 4 * Offset;
+			break;
+		case '8':
+			*_W |= 0x8 << 4 * Offset;
+			break;
+		case '9':
+			*_W |= 0x9 << 4 * Offset;
+			break;
+		case 'A':
+		case 'a':
+			*_W |= 0xA << 4 * Offset;
+			break;
+		case 'B':
+		case 'b':
+			*_W |= 0xB << 4 * Offset;
+			break;
+		case 'C':
+		case 'c':
+			*_W |= 0xC << 4 * Offset;
+			break;
+		case 'D':
+		case 'd':
+			*_W |= 0xD << 4 * Offset;
+			break;
+		case 'E':
+		case 'e':
+			*_W |= 0xE << 4 * Offset;
+			break;
+		case 'F':
+		case 'f':
+			*_W |= 0xF << 4 * Offset;
+			break;
+		default:
+			throw invalid_argument("The string contain non-hex charachers");
+		}
+		if (++Offset >= 2 * DATA_S) {	//*2 because 2 char = 1 byte
+			Offset = 0;
+			++_W;
 		}
 	}
 	return *this;
@@ -424,7 +555,7 @@ template<typename number_t>
 inline inf& inf::operator<<=(number_t const& input) {
 	if (input) {
 		assert(!(input > DATA_S * 8));	//Shift more than DATA_S byte is not supported yet
-		data_t* _RW = _data.back();
+		data_t* _RW = _data_back();
 		uint8_t reverse = DATA_S * 8 - input;
 		if (uint8_t S = size) {	//Normal shift
 			while (--S) {
@@ -532,18 +663,18 @@ inline inf& inf::operator*=<inf>(inf const& input) {
 		}
 		this->size_set(size + input.size);
 		inf temp(*this);
-		this->clear();
+		this->data_set();
 		inf ShiftHowMuch;
 		for (++read; --read; ++_R) {
 			for (uint8_t readbit = 8; readbit; ++ShiftHowMuch) {	//data_t must be uint8_t
 				if (*_R & data_bitB[--readbit]) {
 					*this += (temp <<= ShiftHowMuch);
-					ShiftHowMuch.clear();
+					ShiftHowMuch.data_set();
 				}
 			}
 		}
 		if (this == &input) {
-			delete[] (_R - input.size / 2);
+			delete[](_R - input.size / 2);
 		}
 	}
 	else {
