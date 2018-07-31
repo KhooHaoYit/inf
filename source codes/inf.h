@@ -57,16 +57,21 @@ public:
 	///
 	data_t* _data_back() const;
 	inf& assign(data_t const*const&, size_T const&);
+	inf& Ge)
 	inf& data_set(data_t const& input = 0);
 	inf& size_increase(size_T const&);
 	inf& size_decrease(size_T const&);
 	inf& size_set(size_T const&);
 	//Is this useless?
 	inf& size_set_no_copy(size_T const&);
+	size_T GetUsed() const;
+	inf count() const;
 	inf& size_free();
 	inf& add(data_t const*, size_T const&);
+	inf& add_at(data_t const*, size_T const&, size_T const&);
+	inf& sub(data_t const*, size_T const&);
 	//Didn't check 0x, input hex without 0x
-	inf& hex(string const&);
+	inf& assign_hex(string const&);
 	///
 	//	Default constructors & destructors
 	///
@@ -98,6 +103,14 @@ public:
 	bool const operator==(number_t const&) const;
 	template<typename number_t>
 	bool const operator!=(number_t const&) const;
+	template<typename number_t>
+	bool const operator<(number_t const&) const;
+	template<typename number_t>
+	bool const operator>(number_t const&) const;
+	template<typename number_t>
+	bool const operator<=(number_t const&) const;
+	template<typename number_t>
+	bool const operator>=(number_t const&) const;
 	///
 	//	Assignment opeartors
 	///
@@ -109,6 +122,8 @@ public:
 	inf& operator=(number_t const&);
 	template<typename number_t>
 	inf& operator+=(number_t const&);
+	template<typename number_t>
+	inf& operator-=(number_t const&);
 	template<typename number_t>
 	inf& operator*=(number_t const&);
 	///
@@ -141,10 +156,10 @@ inline ostream& operator<<(ostream& os, inf const& input) {
 			for (size_T HowMuch = input.size; HowMuch; --HowMuch, --_R) {
 				cout << setfill('0') << setw(2 * sizeof(data_t));
 				if (sizeof(data_t) > 1) {
-					cout << *_R;
+					cout << setfill('0') << setw(2 * DATA_S) << *_R;
 				}
 				else {
-					cout << (uint16_t)*_R;
+					cout << setfill('0') << setw(2 * DATA_S) << (uint16_t)*_R;
 				}
 			}
 		}
@@ -252,14 +267,25 @@ inline inf& inf::size_set_no_copy(size_T const& input) {
 	data_set();
 	return *this;
 }
-inline inf& inf::size_free() {
+inline size_T inf::GetUsed() const {
 	size_T remain = size;
 	for (data_t* _check = _data_back(); remain; --remain, --_check) {
 		if (*_check) {
 			break;
 		}
 	}
-	size_set(remain);
+	return remain;
+}
+inline inf inf::count() const {
+	inf output;
+	data_t* _R = _data;
+	for (size_T remain = size; remain; --remain, ++_R) {
+		for (data_t check = *_R; check; check &= check - 1, ++output) {}
+	}
+	return output;
+}
+inline inf& inf::size_free() {
+	size_set(size - GetUsed());
 	return *this;
 }
 inline inf& inf::add(data_t const* _R, size_T const& _R_size) {
@@ -352,8 +378,64 @@ inline inf& inf::add(data_t const* _R, size_T const& _R_size) {
 	}
 	return *this;
 }
-inline inf& inf::hex(string const& input) {
-	//Check required length and set the length
+//Didn't check for same pointer yet
+inline inf& inf::add_at(data_t const* _R, size_T const& _R_size, size_T const& at) {
+	if (_R_size) {
+		if (_R_size + at > size) {
+			size_set(_R_size + at);
+		}
+		bool carry = false;
+		data_t* _RW = _data + at;
+		size_T remain = size - at;
+		for (; remain >= 8; remain -= 8) {
+			if (carry) {
+				if (++(*(uintL_t*)_RW += *(uintL_t*)_R) > *(uintL_t*)_R) {
+					carry = false;
+				}
+			}
+			else {
+				if ((*(uintL_t*)_RW += *(uintL_t*)_R) < *(uintL_t*)_R) {
+					carry = true;
+				}
+			}
+		}
+		for (; remain; --remain) {
+			if (carry) {
+				if (++(*_RW += *_R) > *_R) {
+					carry = false;
+				}
+			}
+			else {
+				if ((*_RW += *_R) < *_R) {
+					carry = true;
+				}
+			}
+		}
+		if (carry) {
+			for (size_T remain = size - _R_size; remain; --remain, ++_RW) {
+				if (++*_RW) {
+					return *this;
+				}
+			}
+			size_increase(1);
+			*_data_back() = 1;
+		}
+	}
+	return *this;
+}
+inline inf& inf::sub(data_t const* _R, size_T const&_R_size) {
+	if (_R_size) {
+		if (size > _R_size) {
+
+		}
+		else {
+
+		}
+	}
+	return *this;
+}
+inline inf& inf::assign_hex(string const& input) {
+	//Check required length and set the lekru ngth
 	string::size_type length = (input.size() + (2 * DATA_S - 1)) / (2 * DATA_S);
 	if (length > SIZE_M) {
 		throw overflow_error("Not enough size to convert to inf");
@@ -525,18 +607,12 @@ inline bool const inf::operator||(number_t const& input) const {
 //			operator==
 template<>
 inline bool const inf::operator==<inf>(inf const& input) const {
-	inf const& large = (size >= input.size) ? *this : input;
-	inf const& small = (size >= input.size) ? input : *this;
-	data_t* _LR = large._data_back();
-	for (size_T check = large.size - small.size; check; --check, --_LR) {
-		if (*_LR) {
-			return false;
-		}
-	}
-	data_t* _SR = small._data_back();
-	for (size_T compare = small.size; compare; --compare, --_LR, --_SR) {
-		if (*_LR != *_SR) {
-			return false;
+	size_T remain = GetUsed();
+	if (remain == input.GetUsed()) {
+		for (data_t* _R1 = _data, _R2 = input._data; remain; --remain, ++_R1, ++_R2) {
+			if (*_R1 != *_R2) {
+				return false;
+			}
 		}
 	}
 	return true;
@@ -546,6 +622,10 @@ template<>
 inline bool const inf::operator!=<inf>(inf const& input) const {
 	return !(*this == input);
 }
+//			operator<
+//			operator>
+//			operator<=
+//			operator>=
 
 ///
 //		Assignment opeartors
@@ -642,11 +722,16 @@ inline inf& inf::operator+=<inf>(inf const& input) {
 	add(input._data, input.size);
 	return *this;
 }
+//			operator-=
+template<typename number_t>
+inline inf& inf::operator-=(number_t const& input) {
+	*this -= inf(input);
+	return *this;
+}
 //			operator*=
 template<typename number_t>
 inline inf& inf::operator*=(number_t const& input) {
-	inf temp(input);
-	*this *= temp;
+	*this *= inf(input);
 	return *this;
 }
 template<>
